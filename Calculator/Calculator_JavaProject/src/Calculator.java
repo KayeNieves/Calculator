@@ -6,7 +6,6 @@ import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 
 public class Calculator {
@@ -29,7 +28,6 @@ public class Calculator {
     String[] topSymbols = {"AC", "+/-", "%"};
 
     JFrame frame = new JFrame("Calculator");
-    JLabel historyJLabel = new JLabel();
     JLabel displayJLabel = new JLabel();
     JPanel displayJPanel = new JPanel();
     JPanel buttonsPanel = new JPanel();
@@ -38,8 +36,9 @@ public class Calculator {
     String operator = null;
     String B = null;
 
-    String history = "";          
-    boolean numberEntered = false; 
+    String expression = "";
+    String current = "0";
+    boolean numberEntered = false;
 
     Calculator() {
         frame.setVisible(true);
@@ -49,24 +48,16 @@ public class Calculator {
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new BorderLayout());
 
-        historyJLabel.setBackground(customBlack);
-        historyJLabel.setForeground(customLightGray);
-        historyJLabel.setFont(new Font("Arial", Font.PLAIN, 22));
-        historyJLabel.setHorizontalAlignment(JLabel.RIGHT);
-        historyJLabel.setBorder(new EmptyBorder(0, 0, 0, 12));
-        historyJLabel.setPreferredSize(new Dimension(boardWidth, 36));
-        historyJLabel.setOpaque(true);
-
         displayJLabel.setBackground(customBlack);
         displayJLabel.setForeground(Color.white);
         displayJLabel.setFont(new Font("Arial", Font.PLAIN, 80));
         displayJLabel.setHorizontalAlignment(JLabel.RIGHT);
+        displayJLabel.setPreferredSize(new Dimension(boardWidth, 100));
         displayJLabel.setText("0");
         displayJLabel.setOpaque(true);
 
         displayJPanel.setLayout(new BorderLayout());
-        displayJPanel.add(historyJLabel, BorderLayout.NORTH);
-        displayJPanel.add(displayJLabel, BorderLayout.CENTER);
+        displayJPanel.add(displayJLabel);
         frame.add(displayJPanel, BorderLayout.NORTH);
 
         buttonsPanel.setLayout(new GridLayout(5,4));
@@ -103,87 +94,84 @@ public class Calculator {
                     if (Arrays.asList(rightSymbols).contains(buttonValue)) {
                         if (buttonValue.equals("=")) {
                             if (operator != null) {
-                                B = displayJLabel.getText();
+                                B = numberEntered ? current : "0";
                                 String result = calculate(A, operator, B);
-                                showHistory(history + formatNumber(B) + "=");
-                                displayJLabel.setText(result);
                                 clearAll();
+                                current = result;
+                                refreshDisplay();
                             }
                         }
                         else {
                             if (operator == null) {
-                                // first operator: start the history
-                                A = displayJLabel.getText();
-                                history = formatNumber(A) + buttonValue;
+                                A = current;
+                                expression = formatNumber(A) + buttonValue;
                             }
                             else if (numberEntered) {
-                                // chaining: work out 7-2 first, then keep going
-                                B = displayJLabel.getText();
+                                B = current;
                                 A = calculate(A, operator, B);
-                                history = history + formatNumber(B) + buttonValue;
+                                expression = expression + formatNumber(B) + buttonValue;
                             }
                             else {
-                                // no new number typed, so just swap the operator
-                                history = history.substring(0, history.length() - 1) + buttonValue;
+                                expression = expression.substring(0, expression.length() - 1) + buttonValue;
                             }
                             operator = buttonValue;
-                            displayJLabel.setText("0");
+                            current = "";
                             numberEntered = false;
-                            showHistory(history);
+                            refreshDisplay();
                         }
                     }
                     else if (Arrays.asList(topSymbols).contains(buttonValue)) {
                         if (buttonValue.equals("AC")) {
                             clearAll();
-                            displayJLabel.setText("0");
-                            showHistory("");
+                            refreshDisplay();
                         }
                         else if (buttonValue.equals("+/-")) {
-                            double numDisplay = Double.parseDouble(displayJLabel.getText());
+                            double numDisplay = Double.parseDouble(currentOrZero());
                             numDisplay *= -1;
-                            displayJLabel.setText(removeZeroDecimal(numDisplay));
+                            current = removeZeroDecimal(numDisplay);
                             numberEntered = true;
+                            refreshDisplay();
                         }
                         else if (buttonValue.equals("%")) {
-                            double numDisplay = Double.parseDouble(displayJLabel.getText());
+                            double numDisplay = Double.parseDouble(currentOrZero());
                             numDisplay /= 100;
-                            displayJLabel.setText(removeZeroDecimal(numDisplay));
+                            current = removeZeroDecimal(numDisplay);
                             numberEntered = true;
+                            refreshDisplay();
                         }
                     }
                     else if (buttonValue.equals("√")) {
-                        double num = Double.parseDouble(displayJLabel.getText());
+                        double num = Double.parseDouble(currentOrZero());
                         if (num < 0) {
-                            displayJLabel.setText("Error");
+                            clearAll();
+                            setDisplay("Error");
                         }
                         else {
                             num = Math.sqrt(num);
-                            displayJLabel.setText(removeZeroDecimal(num));
+                            current = removeZeroDecimal(num);
                             numberEntered = true;
+                            refreshDisplay();
                         }
                     }
                     else {
-                        // digits and the decimal point
-                        if (operator == null && !numberEntered) {
-                            showHistory(""); // new calculation, clear the old expression
-                        }
                         if (buttonValue.equals(".")) {
                             if (!numberEntered) {
-                                displayJLabel.setText("0.");
+                                current = "0.";
                             }
-                            else if (!displayJLabel.getText().contains(".")) {
-                                displayJLabel.setText(displayJLabel.getText() + ".");
+                            else if (!current.contains(".")) {
+                                current = current + ".";
                             }
                         }
                         else {
-                            if (!numberEntered || displayJLabel.getText().equals("0")) {
-                                displayJLabel.setText(buttonValue);
+                            if (!numberEntered || current.equals("0")) {
+                                current = buttonValue;
                             }
                             else {
-                                displayJLabel.setText(displayJLabel.getText() + buttonValue);
+                                current = current + buttonValue;
                             }
                         }
                         numberEntered = true;
+                        refreshDisplay();
                     }
                 }
             });
@@ -195,8 +183,16 @@ public class Calculator {
         A = "0";
         operator = null;
         B = null;
-        history = "";
+        expression = "";
+        current = "0";
         numberEntered = false;
+    }
+
+    String currentOrZero() {
+        if (current.isEmpty()) {
+            return "0";
+        }
+        return current;
     }
 
     String calculate(String x, String op, String y) {
@@ -226,12 +222,40 @@ public class Calculator {
         return num;
     }
 
-    void showHistory(String text) {
-        int maxLength = 28;
-        if (text.length() > maxLength) {
-            text = "…" + text.substring(text.length() - (maxLength - 1));
+    void refreshDisplay() {
+        if (expression.isEmpty()) {
+            setDisplay(current);
         }
-        historyJLabel.setText(text);
+        else if (numberEntered) {
+            setDisplay(expression + formatNumber(current));
+        }
+        else {
+            setDisplay(expression);
+        }
+    }
+
+    void setDisplay(String text) {
+        int maxWidth = boardWidth - 40;
+        int size = 80;
+        Font font = new Font("Arial", Font.PLAIN, size);
+        FontMetrics fm = displayJLabel.getFontMetrics(font);
+
+        while (fm.stringWidth(text) > maxWidth && size > 24) {
+            size -= 2;
+            font = new Font("Arial", Font.PLAIN, size);
+            fm = displayJLabel.getFontMetrics(font);
+        }
+
+        if (fm.stringWidth(text) > maxWidth) {
+            String tail = text;
+            while (fm.stringWidth("…" + tail) > maxWidth && tail.length() > 1) {
+                tail = tail.substring(1);
+            }
+            text = "…" + tail;
+        }
+
+        displayJLabel.setFont(font);
+        displayJLabel.setText(text);
     }
 
     String removeZeroDecimal(double numDisplay) {
